@@ -2,20 +2,21 @@ import {ErrorMessage} from './ErrorMessage';
 import {t,locale,getLanguage} from './i18n';
 import { useState } from 'react';
 import { averages, growthPoints, type JournalStats, type VocabularyWord } from './analytics';
+import {LearningPage} from './LearningPage';
 const categories = ['Nouns', 'Verbs', 'Adjectives', 'Adverbs', 'Other'];
 const colors = ['#8c67d2', '#b49ae4', '#d0bbee', '#a4a9db', '#e3dbea'];
 function Forms({word}: {word: VocabularyWord}) {
   return <details className="word-details"><summary><span lang={getLanguage()}>{word.lemma}</span><small>{t(word.pos)} {word.lemma.startsWith('sich ') && t('· reflexive')}</small></summary><div>{word.forms.map((f, i) => <p key={i}><b lang="de">{f.form}</b> × {f.count}<small>{f.morph.split('|').join(' · ') || t('No morphology reported')}</small></p>)}</div></details>;
 }
-export function VocabularyPage({stats, error, today, onRetry}: {stats: JournalStats | null; error: string | null; today: string; onRetry: () => void}) {
+function VocabularyOverview({stats, error, today, onRetry}: {stats: JournalStats | null; error: string | null; today: string; onRetry: () => void}) {
   const [yearly, setYearly] = useState(false), [month, setMonth] = useState(today.slice(0, 7)), [year, setYear] = useState(today.slice(0, 4));
-  if (!stats) return <main className="vocabulary-page"><h1>{t("Vocabulary")}</h1><p>{error || t('Loading your words…')}</p>{error && <button onClick={onRetry}>{t("Retry")}</button>}</main>;
+  if (!stats) return <section><h1>{t("Vocabulary")}</h1><p>{error || t('Loading your words…')}</p>{error && <button onClick={onRetry}>{t("Retry")}</button>}</section>;
   const avg = averages(stats, today), points = growthPoints(stats.growth, yearly ? year : month, yearly);
   const max = Math.max(1, ...points.map(p => p.total));
   const coords = points.map((p, i) => `${40 + i * 520 / (points.length - 1)},${170 - p.total / max * 135}`);
   let angle = 0;
   const slices = categories.map((c, i) => { const start = angle; angle += (stats.posCounts[c] || 0) / (stats.totalLemmas || 1) * 360; return `${colors[i]} ${start}deg ${angle}deg`; });
-  return <main className="vocabulary-page">
+  return <section className="vocabulary-overview">
     <header className="vocabulary-heading"><div><span className="eyebrow">{t("YOUR LANGUAGE, GROWING")}</span><h1>{t("Vocabulary")}</h1><p>{t("A collection of the words you make your own.")}</p></div><span className="local-pill">{t("Local analysis · spaCy")}</span></header>
     {(error || stats.analysis.error) && <div className="error-banner" role="alert">{<ErrorMessage error={error || stats.analysis.error || ''}/>}<button onClick={onRetry}>{t("Retry analysis")}</button><small>{t("Your notes are saved independently.")}</small></div>}
     {stats.pendingNotes > 0 && <p className="analysis-notice" role="status">{stats.analysis.error ? t('Analysis paused') : t('Analyzing your language…')} · {stats.pendingNotes} {t("notes pending. Vocabulary totals reflect completed analysis.")}</p>}
@@ -38,5 +39,11 @@ export function VocabularyPage({stats, error, today, onRetry}: {stats: JournalSt
       <section className="vocabulary-card"><header><h2>{t("The shape of your vocabulary")}</h2><span>{t("UNIQUE LEMMAS")}</span></header><div className="pos-breakdown"><div className="pos-donut" role="img" aria-label={categories.map(c => `${t(c)}: ${stats.posCounts[c] || 0}`).join(', ')} style={{background: stats.totalLemmas ? `conic-gradient(${slices.join(',')})` : '#eeeaf3'}}><div><strong>{stats.totalLemmas}</strong><span>{t("lemmas")}</span></div></div><ul>{categories.map((c, i) => <li key={t(c)}><i style={{background: colors[i]}}/><span>{t(c)}</span><b>{stats.posCounts[c] || 0}</b></li>)}</ul></div><p className="metric-explanation">{t("Each lemma uses its most frequent part of speech. Proper names and interjections appear under Other.")}</p></section>
       <section className="vocabulary-card"><header><h2>{t("Recently discovered")}</h2><span>{t("5 NEWEST LEMMAS")}</span></header>{!stats.recentWords.length && <p className="empty-vocabulary">{t("A new word begins with a new note.")}</p>}<div className="recent-words">{stats.recentWords.map(w => <div key={w.id}><Forms word={w}/><time dateTime={w.firstSeen}>{new Date(w.firstSeen + 'T12:00:00').toLocaleDateString(locale(), {day: 'numeric', month: 'short', year: 'numeric'})}</time></div>)}</div><p className="metric-explanation">{t("Open a word to see its forms and grammatical features.")} {getLanguage() === 'de' && t('German reflexive uses are grouped as “sich + verb”.')}</p></section>
     </div>
-  </main>;
+  </section>;
+}
+
+export function VocabularyPage(props:{stats:JournalStats|null;error:string|null;today:string;onRetry:()=>void}) {
+  const [learning,setLearning]=useState(false);
+  const [learningBusy,setLearningBusy]=useState(false);
+  return <main className="vocabulary-page vocabulary-container"><nav className="vocabulary-tabs" aria-label={t('Vocabulary views')}><button disabled={learningBusy} aria-pressed={!learning} onClick={()=>setLearning(false)}>{t('Overview')}</button><button disabled={learningBusy} aria-pressed={learning} onClick={()=>setLearning(true)}>{t('My learning set')}</button></nav>{learning?<LearningPage onBusyChange={setLearningBusy}/>:<VocabularyOverview {...props}/>}</main>;
 }

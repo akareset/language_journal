@@ -1,7 +1,9 @@
 mod settings;
+mod ai;
 mod storage;
 mod nlp;
 mod vocabulary;
+mod learning;
 
 #[tauri::command]
 async fn journal_stats(service: tauri::State<'_, nlp::NlpService>) -> Result<vocabulary::JournalStats, String> {
@@ -49,7 +51,7 @@ async fn save_settings(settings: settings::Settings, service: tauri::State<'_,nl
 pub fn run() {
     tauri::Builder::default()
         .manage(nlp::NlpService::start())
-        .invoke_handler(tauri::generate_handler![load_daily_note, save_daily_note, list_notes, journal_stats, retry_analysis, load_settings, save_settings])
+        .invoke_handler(tauri::generate_handler![load_daily_note, save_daily_note, list_notes, journal_stats, retry_analysis, load_settings, save_settings, ai::ai_preferences, ai::ai_save_preferences, ai::ai_set_key, ai::ai_add_api, ai::ai_analyze, ai::ai_dismiss, ai::ai_history, ai::ai_period_insight, ai::ai_period_insight_history, ai::ai_learning_definition, learning::learning_add, learning::learning_list, learning::learning_review])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

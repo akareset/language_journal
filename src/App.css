@@ -82,6 +82,11 @@ nav { display: grid; gap: 5px; }
 .tag-input-wrap { margin-top: 9px; }
 .tag-input-wrap input { background: #fcfaff; border: 1px solid #e5dbf3; border-radius: 6px; width: 100%; padding: 8px 9px; font-size: 11px; color: #8c71a8; }
 .tag-input-wrap small { display: block; font-size: 9px; color: #a79ab5; margin-top: 5px; }
+.tag-list .tag span { margin-left: 4px; opacity: .75; }
+.tag-suggestions { margin-top: 7px; padding: 8px 9px; border: 1px solid #e9dff3; border-radius: 8px; background: #fff; box-shadow: 0 5px 18px #6e53931a; }
+.tag-suggestions > small { margin: 0 0 6px; }
+.tag-suggestions > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag-suggestions button { cursor: pointer; }
 .save-indicator { display: flex; align-items: center; gap: 7px; font-size: 9px; color: #a599b6; padding-top: 6px; flex-shrink: 0; }
 .save-indicator svg { color: #9b83bb; }
 .status-dot { width: 5px; height: 5px; background: #b399d5; border-radius: 50%; }.status-dot.failed { background: #c47689; }

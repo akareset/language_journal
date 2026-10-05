@@ -11,6 +11,11 @@
   background: #ffffffb5;
   box-shadow: 0 3px 14px #66518604;
 }
+.calendar-page:has(.calendar-filter) { grid-template-rows: auto auto minmax(0, 1fr) auto; }
+.calendar-filter { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; padding: 9px 11px; border: 1px solid #eee7f6; border-radius: 9px; background: #fbf8ff; }
+.calendar-filter label { display: flex; align-items: center; gap: 6px; color: #876ba0; font-size: 11px; font-weight: 550; }
+.calendar-filter select { min-width: 135px; max-width: min(240px, 100%); padding: 7px 27px 7px 9px; border: 1px solid #e5d9f2; border-radius: 7px; color: #715482; background: #fff; font: inherit; font-size: 11px; }
+.calendar-filter button { padding: 6px 9px; background: transparent; border: 0; color: #9c79bb; font-size: 10px; }
 .calendar-header { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
 .calendar-eyebrow { display: flex; align-items: center; gap: 7px; color: #a795ba; font-size: 9px; letter-spacing: 1.4px; margin-bottom: 13px; }
 .calendar-header h1 { display: flex; align-items: center; gap: 13px; font-size: 28px; letter-spacing: -.8px; font-weight: 650; color: #463454; margin: 0; }

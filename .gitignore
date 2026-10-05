@@ -13,6 +13,15 @@ dist-ssr
 __pycache__/
 *.pyc
 *.local
+.env
+.env.*
+!.env.example
+*.db
+*.db-wal
+*.db-shm
+.ui-test-browser/
+ai-insights-preview.png
+insights-page-preview.png
 
 # Local UI verification captures
 calendar-preview.png

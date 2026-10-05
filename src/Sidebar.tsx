@@ -1,12 +1,12 @@
 import {t} from './i18n';
 import { Icon, type IconName } from './Icon';
 
-export function Sidebar({ disabled, view, onToday, onCalendar, onVocabulary, onSettings }: {
-  disabled: boolean; view: 'editor' | 'calendar' | 'vocabulary' | 'settings'; onToday: () => void; onCalendar: () => void; onVocabulary: () => void; onSettings: () => void;
+export function Sidebar({ disabled, view, onToday, onCalendar, onVocabulary, onSettings, onInsights }: {
+  disabled: boolean; view: 'editor' | 'calendar' | 'vocabulary' | 'settings' | 'insights'; onToday: () => void; onCalendar: () => void; onVocabulary: () => void; onSettings: () => void; onInsights: () => void;
 }) {
   const links: { label: string; icon: IconName }[] = [
 
-    { label: 'Insights', icon: 'chart' }, { label: 'Tags', icon: 'tag' },
+    { label: 'Tags', icon: 'tag' },
   ];
   return <aside className="sidebar">
     <div className="brand"><span className="brand-mark"><Icon name="feather" size={21} /></span><span>{t("Language Journal")}</span></div>
@@ -16,6 +16,7 @@ export function Sidebar({ disabled, view, onToday, onCalendar, onVocabulary, onS
       <button className={`nav-item${view === 'editor' ? ' active' : ''}`} aria-label={t("Today")} aria-current={view === 'editor' ? 'page' : undefined} disabled={disabled} onClick={onToday}><Icon name="home" /><span>{t("Today")}</span>{view === 'editor' && <span className="active-dot" />}</button>
       <button className={`nav-item${view === 'calendar' ? ' active' : ''}`} aria-label={t("Calendar")} aria-current={view === 'calendar' ? 'page' : undefined} disabled={disabled} onClick={onCalendar}><Icon name="calendar" /><span>{t("Calendar")}</span>{view === 'calendar' && <span className="active-dot" />}</button>
       <button className={`nav-item${view === 'vocabulary' ? ' active' : ''}`} aria-label={t("Vocabulary")} aria-current={view === 'vocabulary' ? 'page' : undefined} disabled={disabled} onClick={onVocabulary}><Icon name="book"/><span>{t("Vocabulary")}</span></button>
+      <button className={`nav-item${view === 'insights' ? ' active' : ''}`} aria-label={t('Insights')} aria-current={view === 'insights' ? 'page' : undefined} disabled={disabled} onClick={onInsights}><Icon name="chart"/><span>{t('Insights')}</span></button>
       {links.map(({ label, icon }) => <button className="nav-item" aria-label={t(label)} key={t(label)} disabled title={t("Not available yet")}><Icon name={icon} /><span>{t(label)}</span></button>)}
     </nav>
     <div className="sidebar-bottom">

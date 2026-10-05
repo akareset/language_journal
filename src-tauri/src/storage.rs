@@ -17,6 +17,8 @@ pub struct Draft {
     pub tags: Vec<String>,
     #[serde(default)]
     pub writing_seconds: i64,
+    #[serde(default)]
+    pub ai_decisions: Vec<crate::ai::Decision>,
 }
 
 #[derive(Debug, Serialize)]
@@ -84,7 +86,7 @@ fn open_at(path: &Path) -> Result<Connection, String> {
 pub(crate) fn migrate(db: &mut Connection) -> Result<(), String> {
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate).map_err(|e| e.to_string())?;
     let version: i64 = tx.pragma_query_value(None, "user_version", |row| row.get(0)).map_err(|e| e.to_string())?;
-    if version > 4 { return Err(format!("Database version {version} is newer than this app supports")); }
+    if version > 7 { return Err(format!("Database version {version} is newer than this app supports")); }
     if version == 0 {
         tx.execute_batch(
             "CREATE TABLE notes (
@@ -139,10 +141,13 @@ pub(crate) fn migrate(db: &mut Connection) -> Result<(), String> {
         }
     }
     if version < 4 { tx.execute_batch(include_str!("migration4.sql")).map_err(|e| format!("Language migration failed: {e}"))?; }
+    if version < 5 { tx.execute_batch(include_str!("migration5.sql")).map_err(|e| format!("AI migration failed: {e}"))?; }
+    if version < 6 { tx.execute_batch(include_str!("migration6.sql")).map_err(|e| format!("Period insight migration failed: {e}"))?; }
+    if version < 7 { tx.execute_batch(include_str!("migration7.sql")).map_err(|e| format!("Learning migration failed: {e}"))?; }
     tx.commit().map_err(|e| e.to_string())
 }
 
-fn validate_date(key: &str) -> Result<(), String> {
+pub(crate) fn validate_date(key: &str) -> Result<(), String> {
     let bytes = key.as_bytes();
     if bytes.len() != 10 || bytes[4] != b'-' || bytes[7] != b'-'
         || !bytes.iter().enumerate().all(|(i, b)| i == 4 || i == 7 || b.is_ascii_digit()) {
@@ -210,6 +215,7 @@ pub fn save(db: &mut Connection, draft: &Draft) -> Result<Note, String> {
         tx.execute("DELETE FROM note_analysis WHERE note_id=?1", [&note.id]).map_err(|e| e.to_string())?;
         tx.execute("DELETE FROM lemmas WHERE NOT EXISTS (SELECT 1 FROM note_lemmas WHERE lemma_id=lemmas.id)", []).map_err(|e| e.to_string())?;
     }
+    for decision in &draft.ai_decisions { crate::ai::store_decision(&tx, decision, Some(&note.id))?; }
     tx.commit().map_err(|e| format!("Could not commit note: {e}"))?;
     Ok(note)
 }
@@ -226,7 +232,7 @@ pub fn word_counts(text: &str) -> (i64, i64) {
 mod tests {
     use super::*;
     fn draft() -> Draft {
-        Draft { language:"de".into(), writing_seconds: 0, date_key: "2026-09-16".into(), title: None, document: serde_json::json!({"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Grüße, Straße!","marks":[{"type":"bold"}]}]}]}), plain_text: "Grüße, Straße!".into(), tags: vec!["Universität".into(), "daily".into()] }
+        Draft { ai_decisions:vec![], language:"de".into(), writing_seconds: 0, date_key: "2026-09-16".into(), title: None, document: serde_json::json!({"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Grüße, Straße!","marks":[{"type":"bold"}]}]}]}), plain_text: "Grüße, Straße!".into(), tags: vec!["Universität".into(), "daily".into()] }
     }
     fn memory() -> Connection {
         let mut db = Connection::open_in_memory().unwrap(); migrate(&mut db).unwrap(); db
@@ -258,9 +264,9 @@ mod tests {
         assert_eq!(note.created_at, "created");
         assert_eq!(note.updated_at, "updated");
         assert_eq!(note.title, None);
-        assert_eq!(db.pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0)).unwrap(), 4);
+        assert_eq!(db.pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0)).unwrap(), 7);
 
-        let mut data = Draft { language:"de".into(),
+        let mut data = Draft { ai_decisions:vec![], language:"de".into(),
             writing_seconds: 0, date_key: note.date_key.clone(), title: Some("Mein schöner Tag".into()),
             document: note.document.clone(), plain_text: note.plain_text.clone(), tags: note.tags.clone(),
         };
@@ -358,7 +364,7 @@ mod tests {
         let mut db = memory();
         for key in ["2026-02-29", "2026-13-01", "2026-00-00", "../../oops", "0000-01-01"] { assert!(load(&db, key).is_err()); }
         assert!(load(&db, "2024-02-29").is_ok());
-        db.pragma_update(None, "user_version", 5).unwrap(); assert!(migrate(&mut db).is_err());
+        db.pragma_update(None, "user_version", 8).unwrap(); assert!(migrate(&mut db).is_err());
         assert!(open_at(Path::new(file!()).join("notes.db").as_path()).is_err());
     }
 }

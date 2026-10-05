@@ -22,7 +22,7 @@ mod tests {
  fn language_journals_and_settings_are_isolated() {
   let mut db=Connection::open_in_memory().unwrap();storage::migrate(&mut db).unwrap();
   assert_eq!(load(&db).unwrap().language,"de");assert!(!load(&db).unwrap().spellcheck);
-  let mut data=storage::Draft {language:"de".into(),date_key:"2026-09-19".into(),title:Some("Mein Titel".into()),document:serde_json::json!({"type":"doc"}),plain_text:"ging".into(),tags:vec!["lernen".into()],writing_seconds:30};
+  let mut data=storage::Draft {ai_decisions:vec![],language:"de".into(),date_key:"2026-09-19".into(),title:Some("Mein Titel".into()),document:serde_json::json!({"type":"doc"}),plain_text:"ging".into(),tags:vec!["lernen".into()],writing_seconds:30};
   let german=storage::save(&mut db,&data).unwrap();
   let analysis=|name:&str|vocabulary::Analysis {model_version:"test".into(),lemmas:vec![vocabulary::AnalyzedLemma {key:name.into(),lemma:name.into(),pos:"VERB".into(),count:1,first_position:0,forms:vec![]}]};
   let pending=vocabulary::next_pending(&db).unwrap().unwrap();vocabulary::commit_analysis(&mut db,&pending,&analysis("test")).unwrap();

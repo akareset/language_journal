@@ -184,7 +184,7 @@ mod tests {
     use crate::{storage, nlp::WorkerStatus};
     fn memory() -> Connection { let mut db=Connection::open_in_memory().unwrap(); storage::migrate(&mut db).unwrap(); db }
     fn draft(day: &str, text: &str) -> storage::Draft {
-        storage::Draft { language:"de".into(), date_key: day.into(), title: None, document: serde_json::json!({"type":"doc"}), plain_text:text.into(), tags:vec![], writing_seconds:0 }
+        storage::Draft { ai_decisions:vec![], language:"de".into(), date_key: day.into(), title: None, document: serde_json::json!({"type":"doc"}), plain_text:text.into(), tags:vec![], writing_seconds:0 }
     }
     fn result(count: i64) -> Analysis {
         Analysis { model_version:"test".into(), lemmas: vec![AnalyzedLemma {

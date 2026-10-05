@@ -2,7 +2,7 @@ import {ErrorMessage} from './ErrorMessage';
 import {t,locale} from './i18n';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
-import { buildActivity, calendarDate, groupNotesByWeek, mondayOf, shiftDate } from './calendar';
+import { availableTags, buildActivity, calendarDate, groupNotesByWeek, mondayOf, notesWithTag, shiftDate } from './calendar';
 import { defaultTitle, tagColor } from './note';
 import type { NoteSummary } from './note';
 import { Icon } from './Icon';
@@ -76,13 +76,17 @@ export function CalendarPage({ notes, today, disabled, loading, error, onOpen, o
   notes: NoteSummary[]; today: string; disabled: boolean; loading: boolean; error: string | null;
   onOpen: (dateKey: string) => void; onRetry: () => void;
 }) {
-  const weeks = useMemo(() => groupNotesByWeek(notes), [notes]);
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const tags = useMemo(() => availableTags(notes), [notes]);
+  const filteredNotes = useMemo(() => notesWithTag(notes, selectedTag), [notes, selectedTag]);
+  const weeks = useMemo(() => groupNotesByWeek(filteredNotes), [filteredNotes]);
   const currentWeek = mondayOf(today);
   return <main className="calendar-page" aria-busy={loading}>
     <header className="calendar-header">
-      <div><div className="calendar-eyebrow"><Icon name="book" size={13} />{t("YOUR JOURNAL, OVER TIME")}</div><h1 id="calendar-heading">{t("Calendar")}<span className="calendar-count">{notes.length} {notes.length === 1 ? t('note') : t('notes')}</span></h1><p>{t("Little moments. Collected, week by week.")}</p></div>
+      <div><div className="calendar-eyebrow"><Icon name="book" size={13} />{t("YOUR JOURNAL, OVER TIME")}</div><h1 id="calendar-heading">{t("Calendar")}<span className="calendar-count">{filteredNotes.length} {filteredNotes.length === 1 ? t('note') : t('notes')}</span></h1><p>{t("Little moments. Collected, week by week.")}</p></div>
       <button className="calendar-today-button" aria-label={t("Write today's note")} title={t("Write today's note")} disabled={disabled} onClick={() => onOpen(today)}><Icon name="edit" size={15} /><span>{t("Write today")}</span></button>
     </header>
+    {tags.length > 0 && <div className="calendar-filter"><label htmlFor="calendar-tag-filter"><Icon name="tag" size={14} />{t('Filter by tag')}</label><select id="calendar-tag-filter" value={selectedTag ?? ''} onChange={event => setSelectedTag(event.target.value || null)}><option value="">{t('All tags')}</option>{tags.map(tag => <option key={tag} value={tag}>#{tag}</option>)}</select>{selectedTag && <button type="button" onClick={() => setSelectedTag(null)}>{t('Clear filter')}</button>}</div>}
     <section className="calendar-list-area">
       {loading && <p className="calendar-loading" role="status">{t("Loading…")}</p>}
       {error && <div className="error-banner" role="alert">{<ErrorMessage error={error}/>}<button disabled={disabled} onClick={onRetry}>{t("Retry")}</button></div>}
@@ -94,10 +98,10 @@ export function CalendarPage({ notes, today, disabled, loading, error, onOpen, o
             <div className="week-heading"><span className="week-dot" /><h2>{relative ?? range}</h2>{relative && <span className="week-range">{range}</span>}<span className="week-count">{week.notes.length} {week.notes.length === 1 ? t('note') : t('notes')}</span></div>
             <div className="week-notes">{week.notes.map(note => <NoteCard key={note.id} note={note} disabled={disabled} onOpen={onOpen} />)}</div>
           </section>;
-        }) : <div className="calendar-empty"><span><Icon name="feather" size={31} /></span><h2>{t("Your first week starts here.")}</h2><p>{t("Write a few words today. Your notes will find their place here.")}</p><button disabled={disabled} onClick={() => onOpen(today)}>{t("Start today's note")}<Icon name="chevron" size={14} /></button></div>}
+        }) : selectedTag ? <div className="calendar-empty"><span><Icon name="tag" size={31} /></span><h2>{t('No notes with this tag.')}</h2><p>{t('Choose another tag or clear the filter.')}</p><button type="button" onClick={() => setSelectedTag(null)}>{t('Clear filter')}</button></div> : <div className="calendar-empty"><span><Icon name="feather" size={31} /></span><h2>{t("Your first week starts here.")}</h2><p>{t("Write a few words today. Your notes will find their place here.")}</p><button disabled={disabled} onClick={() => onOpen(today)}>{t("Start today's note")}<Icon name="chevron" size={14} /></button></div>}
         {weeks.length > 0 && <p className="calendar-list-end">{t("Every little note is part of your progress.")}</p>}
       </div>
     </section>
-    <ActivityMap notes={notes} today={today} disabled={disabled} onOpen={onOpen} />
+    <ActivityMap notes={filteredNotes} today={today} disabled={disabled} onOpen={onOpen} />
   </main>;
 }

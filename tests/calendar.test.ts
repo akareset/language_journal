@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildActivity, groupNotesByWeek, mondayOf, shiftDate } from '../src/calendar.ts';
+import { availableTags, buildActivity, groupNotesByWeek, mondayOf, notesWithTag, shiftDate } from '../src/calendar.ts';
 import type { NoteSummary } from '../src/note.ts';
 
 function note(dateKey: string, id = dateKey): NoteSummary {
@@ -24,6 +24,20 @@ test('a week crossing New Year remains one block', () => {
   assert.equal(weeks[1].start, '2025-12-29');
   assert.equal(weeks[1].end, '2026-01-04');
   assert.equal(weeks[1].notes.length, 2);
+});
+
+test('saved note tags can be reused and filter both weekly notes and activity', () => {
+  const notes = [
+    {...note('2026-09-17'), tags:['University','daily']},
+    {...note('2026-09-16'), tags:['university']},
+    {...note('2026-09-15'), tags:['travel']},
+  ];
+  assert.deepEqual(availableTags(notes), ['daily','travel','University']);
+  const selected = notesWithTag(notes, 'university');
+  assert.deepEqual(groupNotesByWeek(selected)[0].notes.map(item => item.dateKey), ['2026-09-17','2026-09-16']);
+  assert.equal(buildActivity(selected,'2026-09-17').activeDays, 2);
+  assert.equal(notesWithTag(notes,null).length, 3);
+  assert.deepEqual(notesWithTag(notes,'missing'), []);
 });
 
 test('365-day activity includes today and start, excluding older and future notes', () => {

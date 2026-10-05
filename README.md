@@ -63,7 +63,39 @@ Growth and recent words use the note's date, not the autosave timestamp. Editing
 
 Expand a word to inspect its observed forms and morphological features. The German dependency parser identifies reflexive uses and separable particles: for example, `freue mich`, `freut sich`, and `habe mich gefreut` are grouped under **sich freuen**. First-/second-person reflexive objects also use subject agreement when the model labels them as ordinary pronouns. Ordinary objects such as `sie sieht mich` are not automatically reflexive.
 
-spaCy is statistical: lemma, POS, dependency, and reflexive predictions can be wrong, especially with ambiguous sentences or learner errors. This version has no manual dictionary corrections or grammar feedback. The pipeline uses the official [German model](https://spacy.io/models/de) and its [linguistic annotations](https://spacy.io/usage/linguistic-features). All runtime analysis happens locally; no text is sent to a cloud service.
+spaCy is statistical: lemma, POS, dependency, and reflexive predictions can be wrong, especially with ambiguous sentences or learner errors. Manual dictionary corrections are not available. The pipeline uses the official [German model](https://spacy.io/models/de) and its [linguistic annotations](https://spacy.io/usage/linguistic-features). Vocabulary analysis stays local. Optional AI feedback sends a note to a provider only when you press Analyze.
+
+## AI Insights
+
+**KI-Einblicke / AI Insights** appears on the right beneath writing stats and streak, replacing the former vocabulary preview. At narrow widths it appears below the editor. Vocabulary analysis remains available on the Vocabulary page.
+
+1. Open Settings and press **Add API / API hinzufügen**. The dialog asks only for OpenAI or Gemini and the API key.
+2. Choose the active saved API in Settings, then its model: GPT-5.6 Luna, Terra, Sol, or Gemini 2.5 Flash/Pro. Models require access on your provider account; a ChatGPT subscription is not an API key or API credit.
+3. Select the explanation language independently: German, English, or Ukrainian. Notes/corrections retain the existing German or English journal language. Turn optional orange naturalness suggestions on/off. The tutor prompt can be edited under the expandable advanced setting and saved with **Save prompt**.
+4. Press **Analyze text** beside the editor. A missing key opens AI Settings. This flushes autosave and sends only the saved note text and tutor instructions, not other journal entries, tags, vocabulary, or previous analyses. API use can incur provider charges. Provider retention policies still apply.
+5. Grammar/articles/spelling use light red, word choice purple, and naturalness orange. Word-level diffs highlight the actual edits within the contextual quote. Word-order previews show a struck-through phrase → its replacement. Meaning-dependent suggestions explain the uncertainty without accuracy scores.
+6. **Accept** edits the text, retains formatting, and autosaves the note and acceptance decision atomically. **Dismiss** records the decision before hiding the card. **Ctrl+Z / editor Undo** restores the text; decisions remain an audit trail of past actions, rather than asserting that an accepted correction is still present.
+
+Accepted, non-overlapping corrections are projected onto the original snapshot, so the remaining suggestions shift with the text and can be accepted in any order. A manual edit or Undo that no longer matches that projected text marks the feedback outdated and disables unsafe acceptance until Redo or a new analysis. Corrections cannot cross paragraphs or structural boundaries. Analysis history is available beside each note and through Insights (latest 1,000 analyses); older records remain in SQLite.
+
+The Insights page provides weekly and monthly views. It counts the latest analysis per note so reanalyzing a draft does not inflate its error totals, while showing how many model runs occurred. It reports findings per 100 words, reviewed/open findings, acceptance rate, category mix, recurring stable rule IDs with contextual examples, a correction-density trend between parts of the period, and a suggested practice focus. These are descriptive model-feedback statistics, not measured language proficiency or model accuracy.
+
+The app distinguishes failed requests, malformed/refused/truncated responses, partial validation, and successful responses with no findings. An unanchored or invalid individual finding is excluded with a notice; valid findings remain. Failed AI requests never change the note or masquerade as “no mistakes.” Requests time out after 90 seconds, are size-bounded, and are not automatically retried or sent on each edit. Navigation and normal close await in-flight AI writes/requests along with autosave.
+
+### Credentials and architecture
+
+API keys are stored through the Windows-native `keyring` backend in **Windows Credential Manager**, service `LanguageJournal.AI`, under opaque per-API IDs. They are not in SQLite, source, environment files, or Git. The OS manages their physical location; unlike notes, that may be on the Windows system drive. Keys exist transiently in the password field and Rust memory; stored keys are never returned to the webview. Rust zeroizes its secret buffers. Provider error bodies and keys are not logged, redirects are disabled, and HTTPS destinations are fixed. Removing an API removes its credential. A database backup does not include keys; re-add them on a new Windows account/device.
+
+- `src/AISettings.tsx`, `AI.css`: Add API dialog, active API/model, explanation language, optional style feedback, editable prompt.
+- `src/AIReview.tsx`: review cards, ephemeral Tiptap decorations, snapshot/history selection, Accept/Dismiss.
+- `src/aiText.ts`: local word diff, UTF-16 to ProseMirror position mapping, formatting-preserving correction transactions.
+- `src/ai.ts`: typed IPC plus pending-operation tracking for navigation/close.
+- `src/InsightsPage.tsx`: saved analysis history navigation.
+- `src-tauri/src/ai.rs`: credentials, fixed provider adapters, strict JSON schema, rule catalog, per-finding validation, snapshots and decisions.
+- `src-tauri/src/ai-prompt.txt`: complete default tutor prompt. The mandatory JSON/anchoring contract is appended separately by Rust, with schema version 1.
+- `src-tauri/src/migration5.sql`: AI settings, immutable analyses, and timestamped decision events. Acceptance events travel with the existing note autosave and commit in the same transaction; retrying uses the same event ID and cannot duplicate it.
+
+The detailed plan and example JSON contract are in [docs/ai-insights-plan.md](docs/ai-insights-plan.md). Provider request formats follow [OpenAI Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs) and [Gemini GenerationConfig](https://ai.google.dev/api/generate-content#v1beta.GenerationConfig).
 
 ## Architecture
 
@@ -71,7 +103,7 @@ spaCy is statistical: lemma, POS, dependency, and reflexive predictions can be w
 - `src/NoteEditor.tsx`, `NoteTitle.tsx`, `Tags.tsx`: writing controls; loading an editor does not emit an edit.
 - `src/autosave.ts`: one serialized revision queue per session. An older completion cannot mark newer changes saved. Edits made during a write are saved next.
 - `src/writingTime.ts`: activity timer, with an injectable clock for deterministic tests.
-- `src/StatsPanel.tsx`: live writing statistics, actual streak, and vocabulary overview.
+- `src/StatsPanel.tsx`: live writing statistics, actual streak, and the AI review panel.
 - `src/VocabularyPage.tsx`, `src/App.css`: vocabulary cards, SVG growth chart, POS donut, forms, and responsive layout. No chart framework was added.
 - `src/analytics.ts`: typed statistics plus pure streak, average, and chart calculations.
 - `src/useJournalStats.ts`: refresh after saves and poll only while analysis is pending; stale responses cannot replace newer ones.
@@ -100,8 +132,9 @@ SQLite `user_version` tracks transactional migrations:
 2. Nullable editable title, independent of the date.
 3. Writing seconds, surface-word metrics, body revision, `note_analysis`, unique `lemmas`, and per-note `note_lemmas` associations with counts, POS, surface forms, and morphology.
 4. Persisted language/spellcheck preferences and language-specific daily notes/lemmas; existing notes become German without modifying their content.
+5. AI preferences, immutable analysis snapshots and timestamped acceptance/dismissal events. API keys remain in Windows Credential Manager.
 
-Existing notes are backfilled and analyzed automatically, without changing their original writing content, IDs, or dates. A body edit invalidates only that note's analysis; title, formatting, tags, and timer-only saves do not request redundant linguistic processing. Reanalysis replaces associations rather than adding another copy. Lemmas no longer used in any note are removed. Unsupported future schemas and database failures produce errors rather than empty success states.
+Existing notes are backfilled and analyzed by spaCy automatically, without changing their original writing content, IDs, or dates. A body edit invalidates only that note's vocabulary analysis; title, formatting, tags, and timer-only saves do not request redundant linguistic processing. Vocabulary reanalysis replaces associations rather than adding another copy. Saved AI snapshots are retained unchanged. Lemmas no longer used in any note are removed. Unsupported future schemas and database failures produce errors rather than empty success states.
 
 Keep a single app instance open: independent windows/processes do not coordinate simultaneous edits to the same note.
 
@@ -120,9 +153,27 @@ The production frontend builds successfully. Vite can warn about the existing ed
 
 `tests/desktop-check.mjs` is a dependency-free WebView2 inspection helper. Its debugging flag is process-local and is not enabled for normal launches. Physical Alt+F4/title-bar close, overnight rollover, and long-term use remain useful manual acceptance checks.
 
-AI feedback, vocabulary correction tools, authentication, synchronization, and configurable paths remain deferred.
+Authentication, synchronization, and configurable paths remain deferred.
 
-### Latest checks in this workspace
+### Accepted corrections and learning cards
+
+Notes open with accepted AI edits in their category colors: deleted wording is crossed out and replacements are highlighted. **Show corrected version** hides review markup. The underlying editor document always contains the corrected text; decorations do not enter autosave, word counts, or vocabulary analysis. Changes later overwritten or undone are not guessed onto unrelated text; their decisions remain in analysis history.
+
+Select text in the editor or use **Add to learning set** on a word-choice suggestion. **Generate definition** sends the word and its example to the selected AI provider and creates an editable draft. Check the definition, the dictionary form (including reflexive expressions), and the answer to hide before saving. Adding a suggested word does not accept the note correction.
+
+**Vocabulary → My learning set** lists saved cards and offers due-card practice. The front shows the definition and a cloze example; reveal the answer, then choose Again, Hard, Good, or Easy. This is a small local spaced-repetition scheduler, not Anki synchronization or the FSRS algorithm. Initial intervals are one minute, six hours, one day, and four days respectively; later successful reviews increase intervals, capped at a year. Duplicate words within one language retain their existing card and progress.
+
+Schema version 7 adds learning cards and review history to `D:\GermanNotesData\notes.db`. Examples remain snapshots even when the source note changes. Ratings and schedule updates commit atomically, and retrying the same review cannot count it twice. UI: `LearningDialog.tsx` and `LearningPage.tsx`; IPC: `learning.ts`; storage and scheduling: `src-tauri/src/learning.rs`; accepted-edit mapping: `aiText.ts` and `AIReview.tsx`.
+
+### AI verification
+
+`npm.cmd test` includes local diffs, German/Unicode anchors, ProseMirror formatting/undo, stale and cross-paragraph rejection, and autosave retry payloads. `cargo test --offline --manifest-path src-tauri/Cargo.toml` covers migrations, partial/malformed feedback, provider refusal/truncation, profile validation, and atomic/idempotent decision storage. `node scripts/check-translations.mjs` checks German UI labels.
+
+The optional `tests/ai-desktop-check.mjs` uses an isolated Chromium browser on debug port 9223 plus Vite on 1420, with all notes, API keys, feedback and writes mocked in memory. It checks the two-field dialog, model selection, missing-key routing, colors, partial feedback, Accept/Undo/Dismiss, save retry, analysis errors, and the narrow layout. No model call or real test note is created. Start Vite using `npm.cmd run dev`, then launch Edge with `--headless=new --remote-debugging-port=9223 --user-data-dir=D:\Projects\german-notes\.ui-test-browser --no-first-run about:blank` and run `node tests/ai-desktop-check.mjs`. That temporary browser profile is ignored by Git and Vite's watcher.
+
+Live-provider verification remains manual: add your own key, select a supported model, analyze a short German/English note, review/accept/dismiss feedback, close and reopen to check history, and repeat with the other provider if used. Automated tests never spend API credit.
+
+### Earlier vocabulary verification
 
 - 24 Node tests, 11 Rust tests, and 4 actual-model Python tests pass; the TypeScript/production frontend build passes.
 - The Windows Tauri app analyzed the existing journal using the D: runtime and database. A temporary note confirmed 14 distinct words including articles, three new lemmas, `ging`/`geht` grouped as `gehen`, and three reflexive forms grouped as `sich freuen`.
@@ -131,10 +182,14 @@ AI feedback, vocabulary correction tools, authentication, synchronization, and c
 - Today's empty launch still had no database note. Temporary verification content was cleared; the vocabulary returned to its original six lemmas and only the original written date remained active. Existing journal content was preserved.
 - Database/analysis failure and retry invariants are covered by automated tests. Physical title-bar close, overnight rollover, and a missing-runtime UI scenario remain manual checks for this increment.
 
-### Language/settings verification
+### Earlier language/settings verification
 
 The current increment passes **25 Node tests, 14 Rust tests, and 5 actual-model Python tests**, plus the production build and translation-key audit. Migration testing includes an existing version-3 database with foreign keys enabled, preserving original note fields and rebuilding only derived vocabulary. A simulated settings write failure leaves the previous language and spellcheck preferences intact.
 
 The Windows app was checked in German and English, including Settings, editor, vocabulary, and Calendar. English `went/goes`, `children/child`, and `writing/wrote` grouped correctly. Immediate navigation flushed an English draft; switching back preserved the existing German note exactly. Reloading the interface reloaded English preferences from SQLite, and an empty English day created no note. The spellcheck checkbox enabled the editor checker and disabling it persisted across reload; the default is off for editor and title. Settings remained usable at 540×480 without horizontal overflow. English fixture text was cleared and German/default spellcheck preferences restored afterward.
 
 Native dictionary accuracy when explicitly enabling WebView2 spellcheck remains system-dependent. Technical diagnostics and model-provided morphology retain their original codes; surrounding UI and error guidance are translated.
+
+### Current AI increment checks
+
+32 frontend tests and 20 Rust tests pass, as do the TypeScript/Vite production build, German translation audit, and seven isolated browser interaction checks. The actual Windows WebView showed the right-hand AI panel and the two-field Add API dialog with no error banner. Isolated UI tests covered both provider/model selectors, missing-key navigation, changed-word highlights, word-order previews, Ukrainian explanations, partial validation notices, Accept/Undo/Dismiss, save failure/retry, failed analysis and responsive layout. The word-order unit test also checks formatting on moved words. Browser fixtures never touched real journal content or credentials. No live provider request was made. Rustfmt/clippy are not installed; the existing Vite bundle-size warning remains.

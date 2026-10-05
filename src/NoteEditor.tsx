@@ -1,17 +1,23 @@
 import {getSettings,t} from './i18n';
 import { useEffect } from 'react';
+import { FeedbackHighlights } from './AIReview';
+import type { Editor } from '@tiptap/react';
 import { EditorContent, useEditor, useEditorState } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import type { Draft } from './note';
 import { Icon, type IconName } from './Icon';
+import type {LearningSeed} from './learning';
 
-export function NoteEditor({ initial, locked, onChange, onBlur }: {
+export function NoteEditor({ initial, locked, onChange, onBlur, onReady, showCorrections, onToggleCorrections, onAddLearning }: {
   initial: Draft;
   locked: boolean; onBlur: () => void;
+  onReady: (editor: Editor | null) => void;
   onChange: (document: Draft['document'], plainText: string) => void;
+  showCorrections: boolean; onToggleCorrections: () => void;
+  onAddLearning:(seed:LearningSeed)=>void;
 }) {
   const editor = useEditor({
-    extensions: [StarterKit.configure({ link: { openOnClick: false } })],
+    extensions: [StarterKit.configure({ link: { openOnClick: false } }), FeedbackHighlights],
     content: initial.document,
     editorProps: { attributes: { 'aria-label': t('Journal entry'), lang: initial.language, spellcheck: String(getSettings().spellcheck) } },
     onBlur: () => onBlur(),
@@ -22,8 +28,11 @@ export function NoteEditor({ initial, locked, onChange, onBlur }: {
     bulletList: editor?.isActive('bulletList'), orderedList: editor?.isActive('orderedList'),
     blockquote: editor?.isActive('blockquote'), heading: editor?.isActive('heading', { level: 2 }),
     empty: editor?.isEmpty ?? true, canUndo: editor?.can().undo(), canRedo: editor?.can().redo(),
+    selectedWord: editor?editor.state.doc.textBetween(editor.state.selection.from,editor.state.selection.to,' ').trim():'',
+    example: editor?editor.state.doc.textBetween(editor.state.selection.$from.start(),editor.state.selection.$to.end(),' '):'',
   }) });
   useEffect(() => { editor?.setEditable(!locked, false); }, [editor, locked]);
+  useEffect(() => { onReady(editor); return () => onReady(null); }, [editor, onReady]);
   const buttons: { icon: IconName; label: string; pressed?: boolean; action: () => void }[] = [
     { icon: 'bold', label: 'Bold (Ctrl+B)', pressed: active?.bold, action: () => { editor?.chain().focus().toggleBold().run(); } },
     { icon: 'italic', label: 'Italic (Ctrl+I)', pressed: active?.italic, action: () => { editor?.chain().focus().toggleItalic().run(); } },
@@ -33,6 +42,8 @@ export function NoteEditor({ initial, locked, onChange, onBlur }: {
     { icon: 'quote', label: 'Block quote', pressed: active?.blockquote, action: () => { editor?.chain().focus().toggleBlockquote().run(); } },
   ];
   return <div className="editor-panel">
+    <div className="editor-view-controls"><span>{t(showCorrections?'Accepted changes are shown in color.':'Corrected version')}</span><button type="button" disabled={locked} aria-pressed={!showCorrections} onClick={onToggleCorrections}>{t(showCorrections?'Show corrected version':'Show accepted changes')}</button></div>
+    {active?.selectedWord && active.selectedWord.length<=240 && /\p{L}/u.test(active.selectedWord) && <button type="button" className="selection-learning" disabled={locked} onMouseDown={e=>e.preventDefault()} onClick={()=>onAddLearning({word:active.selectedWord,answer:active.selectedWord,example:active.example,dateKey:initial.dateKey,language:initial.language,sourceKind:'note'})}>{t('Add to learning set')}: {active.selectedWord}</button>}
     <div className="editor-toolbar" role="group" aria-label={t("Text formatting")}>
       <select aria-label={t("Paragraph style")} value={active?.heading ? 'heading' : 'paragraph'} disabled={locked || !editor}
         onChange={event => event.target.value === 'heading' ? editor?.chain().focus().setHeading({ level: 2 }).run() : editor?.chain().focus().setParagraph().run()}>

@@ -9,6 +9,7 @@ export interface Draft {
   plainText: string;
   tags: string[];
   writingSeconds: number;
+  aiDecisions?: import('./ai').Decision[];
 }
 export interface Note extends Draft {
   id: string;

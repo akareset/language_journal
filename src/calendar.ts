@@ -19,6 +19,19 @@ export function mondayOf(dateKey: string): string {
 }
 
 export interface NoteWeek { start: string; end: string; notes: NoteSummary[] }
+export function availableTags(notes: NoteSummary[]): string[] {
+  const tags = new Map<string, string>();
+  for (const note of notes) for (const tag of note.tags) {
+    const key = tag.toLocaleLowerCase();
+    if (!tags.has(key)) tags.set(key, tag);
+  }
+  return [...tags.values()].sort((a, b) => a.localeCompare(b));
+}
+export function notesWithTag(notes: NoteSummary[], tag: string | null): NoteSummary[] {
+  if (tag === null) return notes;
+  const wanted = tag.toLocaleLowerCase();
+  return notes.filter(note => note.tags.some(value => value.toLocaleLowerCase() === wanted));
+}
 export function groupNotesByWeek(notes: NoteSummary[]): NoteWeek[] {
   const weeks = new Map<string, NoteWeek>();
   const sorted = [...notes].sort((a, b) => b.dateKey.localeCompare(a.dateKey) || a.id.localeCompare(b.id));
