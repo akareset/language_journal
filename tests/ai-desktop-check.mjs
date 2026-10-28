@@ -21,6 +21,9 @@ async function inject(){
   const categories=[['Ich sehe der Hund.','Ich sehe den Hund.','grammar','grammar.article'],['Ich werde ein Foto machen.','Ich mache ein Foto.','naturalness','style.naturalness'],['Heute ich gehe heim.','Heute gehe ich heim.','word_order','grammar.word_order'],['Das Essen war sensibel.','Das Essen war köstlich.','word_choice','vocabulary.word_choice']];
   const analysis={id:'test-analysis',noteId:'test-note',dateKey:'2026-09-20',language:'de',document:doc,plainText:source,profile:{id:'test-profile',name:'OpenAI 1',provider:'openai',model:'gpt-5.6-luna'},explanationLanguage:'uk',prompt:'Test tutor prompt',naturalness:true,schemaVersion:1,createdAt:'2026-09-20T12:00:00Z',excluded:1,decisions:[],findings:categories.map(([quote,replacement,category,ruleId],i)=>({id:'f'+i,quote,replacement,category,ruleId,occurrence:0,explanation:'Перевірте форму слова в цьому реченні.',meaningNote:i===3?'Якщо ви маєте на увазі смак їжі.':'',start:source.indexOf(quote),end:source.indexOf(quote)+quote.length}))};
   const state={prefs,analysis,history:[],writes:[],failSave:false,failAnalysis:false,note:{id:'test-note',dateKey:'2026-09-20',language:'de',title:'UI test — in memory',document:doc,plainText:source,tags:[],writingSeconds:0,createdAt:'test',updatedAt:'test'}};
+  const words=Array.from({length:10},(_,i)=>({id:i+1,lemma:'verb'+i,pos:'VERB',count:20-i,noteCount:2,firstSeen:'2026-09-20',lastSeen:'2026-09-20',forms:[{form:'verb'+i,morph:'Tense=Pres',count:20-i}]}));
+  const noun={...words[0],id:11,lemma:'Haus',pos:'NOUN',count:1};
+  state.stats={notes:[],totalLemmas:11,totalOccurrences:156,posCounts:{Nouns:1,Verbs:10,Adjectives:0,Adverbs:0,Other:0},topWords:words,recentWords:[noun],categoryWords:{Nouns:[noun],Verbs:words,Adjectives:[],Adverbs:[],Other:[]},growth:[],pendingNotes:0,analysis:{running:false,error:null}};
   const initialization=`(() => {
     window.__aiTest=${JSON.stringify(state)};
     let callbackId=0;const callbacks=new Map();
@@ -29,7 +32,7 @@ async function inject(){
     window.__TAURI_INTERNALS__.invoke=async (cmd,args={})=>{
       const s=window.__aiTest;
       if(cmd==='load_settings')return {language:'de',spellcheck:false};
-      if(cmd==='journal_stats')return null;
+      if(cmd==='journal_stats')return structuredClone(s.stats);
       if(cmd==='plugin:event|listen')return args.handler;
       if(cmd==='plugin:event|unlisten')return;
       if(cmd==='load_daily_note')return {...s.note,dateKey:args.dateKey};
@@ -43,6 +46,7 @@ async function inject(){
       if(cmd==='ai_save_preferences'){s.prefs.config=structuredClone(args.config);return;}
       if(cmd==='ai_add_api'){const id='api-'+(s.prefs.config.profiles.length+1);s.prefs.config.profiles.push({id,name:args.provider==='openai'?'OpenAI 1':'Gemini 1',provider:args.provider,model:args.provider==='openai'?'gpt-5.6-luna':'gemini-2.5-flash'});s.prefs.config.selectedProfile=id;s.prefs.configuredKeys.push(id);return;}
       if(cmd==='ai_history')return structuredClone(s.history);
+      if(cmd==='ai_reset'){if(s.failReset)throw Error('Simulated reset failure');if(s.note.aiDecisions?.length)throw Error('Pending decisions were not cleared before reset');s.history=[];return;}
       if(cmd==='ai_period_insight_history')return [];
       if(cmd==='ai_analyze'){if(s.failAnalysis)throw Error('Simulated malformed provider response');s.history=[structuredClone(s.analysis)];return structuredClone(s.analysis);}
       if(cmd==='ai_dismiss'){s.history[0].decisions.push(args.decision);return;}
@@ -142,10 +146,28 @@ try {
   await evaluate(`window.__aiTest.failAnalysis=true`);await clickText('.ai-review','Text analysieren');
   await until(`document.querySelector('.ai-review .error-banner')?.textContent.includes('Simulated malformed')`);
   console.log('PASS: failed autosave retains accepted draft and retries; failed analysis remains an error');
+  await evaluate(`window.__aiTest.failAnalysis=false;for(let i=0;i<3;i++)document.querySelector('.editor-toolbar button[aria-label="Rückgängig"]').click()`);
+  await until(`!!document.querySelector('.ai-snapshot')`);
+  const beforeReset=await evaluate(`(()=>{const copy=document.querySelector('.tiptap').cloneNode(true);copy.querySelectorAll('.ai-accepted-original').forEach(n=>n.remove());return copy.textContent;})()`);
+  await evaluate(`window.__aiTest.failReset=true`);
+  await clickText('.ai-review','Analysen zurücksetzen');
+  await until(`document.querySelector('.ai-review .error-banner')?.textContent.includes('Simulated reset failure')`);
+  assert.equal(await evaluate(`window.__aiTest.history.length`),1);
+  await evaluate(`window.__aiTest.failReset=false`);
+  await clickText('.ai-review','Analysen zurücksetzen');
+  await until(`window.__aiTest.history.length===0&&!document.querySelector('.ai-snapshot')`);
+  assert.equal(await evaluate(`document.querySelector('.tiptap').textContent`),beforeReset);
+  assert.equal(await evaluate(`document.querySelectorAll('.ai-mark,.ai-accepted-original,.ai-finding').length`),0);
+  await clickText('.ai-review','Text analysieren');
+  await until(`document.querySelectorAll('.ai-finding').length===4`);
+  await clickText('.ai-finding.grammar','Übernehmen');
+  await until(`document.querySelector('.ai-accepted-replacement')?.textContent==='den'`);
+  await until(`window.__aiTest.note.plainText.includes('Ich sehe den Hund.')`);
+  console.log('PASS: repeated Undo, reset failure/retry and fresh analysis restore working Accept buttons');
   await evaluate(`document.querySelector('.sidebar button[aria-label="Einblicke"]').click()`);
   await until(`!!document.querySelector('.insights-page')`);
-  await evaluate(`document.querySelector('button[aria-label="Vorheriger Zeitraum"]').click();document.querySelector('button[aria-label="Vorheriger Zeitraum"]').click()`);
-  await until(`document.querySelector('.insight-summary')?.textContent.includes('1')`);
+  for(let week=0;week<8;week++) {if(await evaluate(`document.querySelector('.insight-summary strong')?.textContent==='1'`))break;await evaluate(`document.querySelector('button[aria-label="Vorheriger Zeitraum"]').click()`);await new Promise(resolve=>setTimeout(resolve,100));}
+  await until(`document.querySelector('.insight-summary strong')?.textContent==='1'`);
   assert.equal(await evaluate(`!!document.querySelector('.trend-card') && !!document.querySelector('.recurring-card') && !!document.querySelector('.focus-card')`),true);
   if(process.argv.includes('--screenshots')) {const shot=await send('Page.captureScreenshot',{format:'png'});await writeFile('insights-page-preview.png',Buffer.from(shot.data,'base64'));}
   console.log('PASS: weekly Insights show trend, recurring rules and practice focus');
@@ -170,6 +192,22 @@ try {
   await clickText('.learning-dialog','Abbrechen');
   console.log('PASS: selecting editor text opens a card with the clean note context');
   await evaluate(`document.querySelector('.sidebar button[aria-label="Wortschatz"]').click()`);
+  await until(`!!document.querySelector('.top-words-scroll')`);
+  assert.equal(await evaluate(`(()=>{const list=document.querySelector('.top-words-scroll');list.scrollTop=100;return list.scrollHeight>list.clientHeight&&list.scrollTop>0;})()`),true);
+  await evaluate(`document.querySelector('.category-card').click()`);
+  await until(`document.querySelector('.category-dialog')?.open`);
+  assert.equal(await evaluate(`document.querySelectorAll('.category-detail').length`),5);
+  assert.equal(await evaluate(`document.querySelector('.category-detail').textContent.includes('Haus')`),true);
+  assert.equal(await evaluate(`document.querySelectorAll('.category-detail')[1].querySelectorAll('li').length`),10);
+  await evaluate(`document.querySelector('.category-detail .word-details').open=true`);
+  await clickText('.category-dialog','Schließen');
+  await evaluate(`document.querySelector('.category-card').focus()`);
+  await send('Input.dispatchKeyEvent',{type:'keyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13});
+  await send('Input.dispatchKeyEvent',{type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13});
+  await until(`document.querySelector('.category-dialog')?.open`);
+  assert.equal(await evaluate(`document.documentElement.scrollWidth<=innerWidth`),true);
+  await clickText('.category-dialog','Schließen');
+  console.log('PASS: top words scroll and category details include separate rankings, forms and keyboard access');
   await clickText('.vocabulary-page','Mein Lernset');
   await until(`document.querySelectorAll('.learning-card').length===1`);
   await clickText('.learning-page','Fällige Karten lernen');

@@ -1,4 +1,5 @@
 .ai-settings fieldset { border:0; padding:0; margin:0; min-width:0; }
+.ai-reset { margin:12px 0; }.ai-reset button { font-size:10px; color:#88639f; background:#f6f0fb; border:1px solid #e5d8ee; }.ai-reset small { display:block; color:#9986aa; font-size:9px; line-height:1.6; margin-top:6px; }
 .ai-settings label { display:grid; gap:9px; font-size:12px; margin:18px 0; color:#705681; }
 .ai-settings input:not([type=checkbox]), .ai-settings select, .ai-settings textarea, .ai-review select { width:100%; border:1px solid #e4d9f1; border-radius:8px; padding:10px 12px; background:#fcfaff; color:#624d76; font:inherit; }
 .ai-settings textarea { resize:vertical; line-height:1.7; }.ai-settings .ai-checkbox { display:flex; align-items:center; }.ai-settings .ai-checkbox input { accent-color:#9266ca; }

@@ -4,7 +4,7 @@ export interface VocabularyWord { id: number; lemma: string; pos: string; count:
 export interface JournalStats {
   notes: {dateKey: string; wordCount: number; uniqueWords: number; writingSeconds: number; analyzed: boolean; newLemmas: number}[];
   totalLemmas: number; totalOccurrences: number; posCounts: Record<string, number>;
-  topWords: VocabularyWord[]; recentWords: VocabularyWord[];
+  topWords: VocabularyWord[]; recentWords: VocabularyWord[]; categoryWords: Record<string,VocabularyWord[]>;
   growth: {dateKey: string; newLemmas: number}[]; pendingNotes: number;
   analysis: {running: boolean; error: string | null};
 }

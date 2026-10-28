@@ -3,7 +3,7 @@ import { Extension, type Editor } from '@tiptap/react';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { closeHistory } from '@tiptap/pm/history';
-import { aiHistory, aiPreferences, analyzeNote, dismissFinding, type Analysis, type Decision, type Finding } from './ai';
+import { aiHistory, aiPreferences, analyzeNote, dismissFinding, resetAnalyses, type Analysis, type Decision, type Finding } from './ai';
 import { acceptedChanges, correctionTransaction, editableRange, mergeDecisions, projectAnalysis, wordChanges, type ProjectedFinding } from './aiText';
 import type { Autosave } from './autosave';
 import { t } from './i18n';
@@ -62,8 +62,22 @@ export function AIReview({editor,queue,locked,onSettings,showCorrections=true,on
       if(!preferences.config.selectedProfile||!preferences.configuredKeys.includes(preferences.config.selectedProfile)){onSettings();return;}
       await queue.flush();const latest=queue.getSnapshot().draft;
       const result=await analyzeNote(latest.dateKey,latest.language,latest.plainText);
-      if(alive.current){setHistory(old=>[result,...old]);setSelected(result.id);}
+      if(alive.current){setHistory(old=>[result,...old.filter(a=>a.id!==result.id)]);setSelected(result.id);}
     } catch(e){if(alive.current){if(String(e).includes('AI_KEY_REQUIRED'))onSettings();else setError(String(e));}}
+    finally{inFlight.current=false;if(alive.current)setBusy(false);}
+  }
+  async function reset(){
+    if(inFlight.current||loading||locked)return;
+    inFlight.current=true;setBusy(true);setError('');
+    try {
+      // Finish accepted writes, then remove their retry payload before deleting
+      // history. Later autosaves must never reference deleted analyses.
+      await queue.flush();
+      const latest=queue.getSnapshot().draft;
+      if(latest.aiDecisions?.length){queue.update({...latest,aiDecisions:[]});await queue.flush();}
+      await resetAnalyses(latest.dateKey,latest.language);
+      if(alive.current){setHistory([]);setSelected('');}
+    }catch(e){if(alive.current)setError(String(e));}
     finally{inFlight.current=false;if(alive.current)setBusy(false);}
   }
   function accept(f:Finding){
@@ -91,7 +105,8 @@ export function AIReview({editor,queue,locked,onSettings,showCorrections=true,on
     onAddLearning({word,answer:word,example:f.replacement,dateKey:draft.dateKey,language:draft.language,sourceKind:'suggestion'});
   }
   return <section className="ai-review" aria-label={t('AI Insights')} aria-busy={busy||loading}>
-    <div className="ai-review-header"><h2>{t('AI Insights')}</h2><button className="ai-analyze" disabled={locked||busy||!draft.plainText.trim()} onClick={()=>void analyze()}>{busy?t('Analyzing…'):t('Analyze text')}</button></div>
+    <div className="ai-review-header"><h2>{t('AI Insights')}</h2><button className="ai-analyze" disabled={locked||busy||loading||!draft.plainText.trim()} onClick={()=>void analyze()}>{busy?t('Working…'):t('Analyze text')}</button></div>
+    <div className="ai-reset"><button disabled={locked||busy||loading||(!history.length&&!draft.aiDecisions?.length)} onClick={()=>void reset()}>{t('Reset analyses')}</button><small>{t('Removes this note’s AI feedback and decisions. Keeps the current text. You can then analyze again.')}</small></div>
     <p className="ai-disclosure">{t('Analyze sends this note to your selected AI provider. Suggestions are optional; check them before accepting.')} <button disabled={locked||busy} onClick={onSettings}>{t('AI settings')}</button></p>
     {loading&&<p role="status">{t('Loading…')}</p>}
     {error&&<div className="error-banner" role="alert">{error}<p>{t('The operation failed. Any existing feedback is unchanged.')}</p></div>}

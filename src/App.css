@@ -152,6 +152,23 @@ nav { display: grid; gap: 5px; }
 .vocabulary-card header > span { font-size:8px; color:#a394b4; letter-spacing:.8px; }
 .vocabulary-card header p { font-size:11px; color:#9b8eaa; margin:6px 0 0; }
 .top-words { list-style:none; padding:0; margin:0; }
+.top-words-scroll { max-height:310px; overflow-y:auto; scrollbar-width:thin; scrollbar-color:#d3bfe9 transparent; padding-right:10px; overscroll-behavior:contain; }
+.top-words-scroll:focus-visible,.category-card:focus-visible { outline:2px solid #a481cf; outline-offset:3px; }
+.category-card { cursor:pointer; transition:border-color .15s,box-shadow .15s; }
+.category-card:hover { border-color:#d1bce9; box-shadow:0 4px 16px #8c67d210; }
+.category-open { color:#946abb; font-size:11px; }
+.category-dialog { width:min(880px,calc(100vw - 32px)); max-height:calc(100vh - 48px); overflow-y:auto; border:1px solid #e5d9f2; border-radius:16px; padding:26px; background:#fbf9ff; color:#655078; box-shadow:0 20px 80px #4d306a30; scrollbar-width:thin; }
+.category-dialog::backdrop { background:#3d23533d; backdrop-filter:blur(3px); }
+.category-dialog>header,.category-detail>header { display:flex; align-items:center; justify-content:space-between; gap:14px; }
+.category-dialog h2 { margin:8px 0; font-size:22px; }
+.category-dialog>header button { color:#8059a3; background:#eee5f8; border:1px solid #ddcdec; font-size:12px; }
+.category-detail-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin-top:20px; }
+.category-detail { border:1px solid #ebe2f3; border-radius:12px; background:white; padding:18px; min-width:0; }
+.category-detail h3 { display:flex; align-items:center; gap:8px; font-size:14px; margin:0; }
+.category-detail h3 i { width:9px; height:9px; border-radius:50%; }
+.category-detail>header>span { color:#a18caf; font-size:10px; }
+.category-detail .top-words { max-height:300px; overflow-y:auto; scrollbar-width:thin; margin-top:14px; }
+@media(max-width:650px) { .category-detail-grid { grid-template-columns:1fr; }.category-dialog { padding:18px; }.pos-breakdown { gap:14px; flex-wrap:wrap; } }
 .top-words li { display:grid; grid-template-columns:24px minmax(0,1fr) 40px; gap:12px; padding:10px 0; align-items:start; }
 .word-rank { color:#b1a1c6; font-size:11px; padding-top:3px; }
 .word-details { min-width:0; }

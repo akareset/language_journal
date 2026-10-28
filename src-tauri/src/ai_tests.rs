@@ -1,4 +1,24 @@
 use super::*;
+#[test]
+fn reset_is_atomic_note_scoped_and_preserves_text() {
+    let mut db=rusqlite::Connection::open_in_memory().unwrap();storage::migrate(&mut db).unwrap();
+    db.execute_batch("PRAGMA foreign_keys=ON;").unwrap();
+    for (id,date,language) in [("current","2026-10-09","de"),("previous","2026-10-08","de"),("english","2026-10-09","en")] {
+        db.execute("INSERT INTO notes(id,date_key,language,document,plain_text,tags) VALUES(?1,?2,?3,'{\"type\":\"doc\"}','Keep this text','[]')",params![id,date,language]).unwrap();
+        db.execute("INSERT INTO ai_analyses(id,note_id,record) VALUES(?1,?1,'{}')",[id]).unwrap();
+        db.execute("INSERT INTO ai_decisions(id,analysis_id,finding_id,action) VALUES(?1,?1,'f','accepted')",[id]).unwrap();
+    }
+    db.execute_batch("CREATE TRIGGER deny_reset BEFORE DELETE ON ai_analyses BEGIN SELECT RAISE(ABORT,'disk failure'); END;").unwrap();
+    assert!(reset_note_analyses(&mut db,"2026-10-09","de").is_err());
+    assert_eq!(db.query_row("SELECT count(*) FROM ai_decisions",[],|r|r.get::<_,i64>(0)).unwrap(),3);
+    db.execute_batch("DROP TRIGGER deny_reset").unwrap();
+    reset_note_analyses(&mut db,"2026-10-09","de").unwrap();
+    reset_note_analyses(&mut db,"2026-10-09","de").unwrap();
+    assert_eq!(db.query_row("SELECT count(*) FROM ai_analyses",[],|r|r.get::<_,i64>(0)).unwrap(),2);
+    assert_eq!(db.query_row("SELECT count(*) FROM ai_decisions",[],|r|r.get::<_,i64>(0)).unwrap(),2);
+    assert_eq!(db.query_row("SELECT plain_text FROM notes WHERE id='current'",[],|r|r.get::<_,String>(0)).unwrap(),"Keep this text");
+    assert!(reset_note_analyses(&mut db,"invalid","de").is_err());
+}
 fn finding() -> Value {json!({"ruleId":"grammar.article","category":"grammar","quote":"Ich sehe der Hund.","replacement":"Ich sehe den Hund.","occurrence":0,"explanation":"Akkusativ: den Hund.","meaningNote":""})}
 #[test]
 fn partial_validation_preserves_valid_feedback_and_counts_exclusions() {

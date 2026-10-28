@@ -320,6 +320,20 @@ pub async fn ai_history(date_key:Option<String>, language:String) -> Result<Vec<
     }).await.map_err(error)?
 }
 
+fn reset_note_analyses(db:&mut rusqlite::Connection,date_key:&str,language:&str)->Result<(),String> {
+    crate::settings::validate(language)?;storage::validate_date(date_key)?;
+    let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(error)?;
+    tx.execute("DELETE FROM ai_decisions WHERE analysis_id IN (SELECT a.id FROM ai_analyses a JOIN notes n ON n.id=a.note_id WHERE n.date_key=?1 AND n.language=?2)",params![date_key,language]).map_err(error)?;
+    tx.execute("DELETE FROM ai_analyses WHERE note_id IN (SELECT id FROM notes WHERE date_key=?1 AND language=?2)",params![date_key,language]).map_err(error)?;
+    tx.commit().map_err(error)
+}
+#[tauri::command]
+pub async fn ai_reset(date_key:String,language:String)->Result<(),String> {
+    if ANALYZING.compare_exchange(false,true,Ordering::SeqCst,Ordering::SeqCst).is_err() {return Err("An AI analysis is already running".into());}
+    let _guard=BusyGuard;
+    tauri::async_runtime::spawn_blocking(move||reset_note_analyses(&mut storage::open_database()?,&date_key,&language)).await.map_err(error)?
+}
+
 fn validate_period_report(mut report: PeriodResponse) -> Result<PeriodResponse,String> {
     if report.overview.trim().is_empty() || report.overview.len()>6000 || report.patterns.len()>8 || report.topics.len()>8 {
         return Err("The model returned an incomplete period analysis; analysis failed".into());

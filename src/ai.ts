@@ -27,6 +27,7 @@ export const setAIKey = (profileId: string, key: string) => track(invoke<void>('
 export const addAPI = (provider: 'openai' | 'gemini', key: string) => track(invoke<void>('ai_add_api', { provider, key }));
 export const analyzeNote = (dateKey: string, language: Language, expectedText: string) => track(invoke<Analysis>('ai_analyze', { dateKey, language, expectedText }));
 export const dismissFinding = (decision: Decision) => track(invoke<void>('ai_dismiss', { decision }));
+export const resetAnalyses = (dateKey: string, language: Language) => track(invoke<void>('ai_reset', { dateKey, language }));
 export const aiHistory = (language: Language, dateKey: string | null = null) => invoke<Analysis[]>('ai_history', { dateKey, language });
 export const analyzePeriod = (startDate: string, endDate: string, language: Language) => track(invoke<PeriodInsight>('ai_period_insight', { startDate, endDate, language }));
 export const periodInsightHistory = (startDate: string, endDate: string, language: Language) => invoke<PeriodInsight[]>('ai_period_insight_history', { startDate, endDate, language });

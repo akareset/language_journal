@@ -102,6 +102,7 @@ pub struct JournalStats {
     pub pos_counts: BTreeMap<String, i64>,
     pub top_words: Vec<VocabularyWord>,
     pub recent_words: Vec<VocabularyWord>,
+    pub category_words: BTreeMap<String,Vec<VocabularyWord>>,
     pub growth: Vec<GrowthDay>,
     pub pending_notes: usize,
     pub analysis: crate::nlp::WorkerStatus,
@@ -172,9 +173,16 @@ pub fn snapshot(db: &mut Connection, status: crate::nlp::WorkerStatus) -> Result
     let total_occurrences = words.iter().map(|w| w.count).sum();
     words.sort_by(|a,b| b.count.cmp(&a.count).then_with(|| a.lemma.cmp(&b.lemma)));
     let top_words = words.iter().take(10).cloned().collect();
+    // Build category rankings before truncating the overall list.
+    let mut category_words: BTreeMap<String,Vec<VocabularyWord>> = ["Nouns","Verbs","Adjectives","Adverbs","Other"].into_iter().map(|s|(s.into(),vec![])).collect();
+    for word in &words {
+        let category = match word.pos.as_str() { "NOUN"=>"Nouns", "VERB"=>"Verbs", "ADJ"=>"Adjectives", "ADV"=>"Adverbs", _=>"Other" };
+        let ranking=category_words.get_mut(category).unwrap();
+        if ranking.len()<10 {ranking.push(word.clone());}
+    }
     words.sort_by(|a,b| b.first_seen.cmp(&a.first_seen).then_with(|| b.id.cmp(&a.id)));
     let recent_words = words.into_iter().take(5).collect();
-    Ok(JournalStats { notes,total_lemmas,total_occurrences,pos_counts,top_words,recent_words,
+    Ok(JournalStats { notes,total_lemmas,total_occurrences,pos_counts,top_words,recent_words,category_words,
         growth:growth.into_iter().map(|(date_key,new_lemmas)|GrowthDay{date_key,new_lemmas}).collect(), pending_notes,analysis:status })
 }
 
@@ -191,6 +199,27 @@ mod tests {
             key:"gehen".into(),lemma:"gehen".into(),pos:"VERB".into(),count,first_position:0,
             forms:vec![Form {form:"ging".into(),morph:"Tense=Past".into(),count}],
         }] }
+    }
+    #[test]
+    fn category_rankings_include_words_outside_global_top_ten() {
+        let mut db=memory();storage::save(&mut db,&draft("2026-10-05","Test words")).unwrap();
+        let pending=next_pending(&db).unwrap().unwrap();
+        let mut analysis=result(1);analysis.lemmas.clear();
+        for i in 0..12 {
+            analysis.lemmas.push(AnalyzedLemma{key:format!("verb{i:02}"),lemma:format!("verb{i:02}"),pos:"VERB".into(),count:20-i,first_position:i,forms:vec![]});
+        }
+        for (key,pos) in [("Haus","NOUN"),("gut","ADJ"),("gern","ADV"),("Berlin","PROPN")] {
+            analysis.lemmas.push(AnalyzedLemma{key:key.into(),lemma:key.into(),pos:pos.into(),count:1,first_position:0,forms:vec![]});
+        }
+        commit_analysis(&mut db,&pending,&analysis).unwrap();
+        let stats=snapshot(&mut db,WorkerStatus::default()).unwrap();
+        assert_eq!(stats.top_words.len(),10);assert!(stats.top_words.iter().all(|w|w.pos=="VERB"));
+        assert_eq!(stats.category_words["Verbs"].len(),10);assert_eq!(stats.pos_counts["Verbs"],12);
+        assert_eq!(stats.category_words["Verbs"][0].count,20);assert_eq!(stats.category_words["Verbs"][9].count,11);
+        assert_eq!(stats.category_words["Nouns"][0].lemma,"Haus");assert_eq!(stats.category_words["Other"][0].lemma,"Berlin");
+        assert_eq!(stats.category_words["Adjectives"][0].lemma,"gut");assert_eq!(stats.category_words["Adverbs"][0].lemma,"gern");
+        db.execute("UPDATE app_settings SET language='en'",[]).unwrap();
+        assert!(snapshot(&mut db,WorkerStatus::default()).unwrap().category_words.values().all(|words|words.is_empty()));
     }
     #[test]
     fn merges_notes_and_reanalysis_does_not_inflate_counts() {
